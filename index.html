@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>한국어 학습자 발화 청취 실험</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2430;--mute:#5f6b7a;--line:#d9dee5;--accent:#2b4a7a;--accent-ink:#fff;--sel:#e6edf8;--ok:#2f7d57}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141a22;--card:#1d2530;--ink:#e8ecf1;--mute:#98a4b3;--line:#334050;--accent:#7fa6e0;--accent-ink:#10161e;--sel:#26364d;--ok:#6cc79a}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.7;min-height:100vh;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:640px;margin:0 auto;padding:32px 20px 64px}
+.bar{height:4px;background:var(--line);border-radius:2px;margin-bottom:28px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+h1{font-size:1.5rem;margin:0 0 8px;line-height:1.4}
+h2{font-size:1.2rem;margin:0 0 12px}
+p{margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:28px}
+.mute{color:var(--mute);font-size:.9rem}
+label{display:block;font-weight:500;margin:18px 0 6px}
+input[type=text],input[type=number],select{width:100%;padding:10px 12px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--accent);color:var(--accent-ink);border:0;border-radius:6px;padding:12px 28px;font-weight:700;margin-top:22px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:18px}
+.check input{margin-top:7px}
+.player{display:flex;align-items:center;gap:16px;margin:8px 0 6px}
+.play{width:64px;height:64px;border-radius:50%;border:2px solid var(--accent);background:var(--card);color:var(--accent);font-size:1.4rem;display:grid;place-items:center;flex:none}
+.play[disabled]{opacity:.35;cursor:not-allowed}
+.play.on{background:var(--accent);color:var(--accent-ink)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}.grp{display:flex;flex-direction:column;gap:10px}.gh{font-size:.85rem;color:var(--mute);font-weight:500;padding-bottom:2px;border-bottom:1px solid var(--line)}
+.opt{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:14px 12px;text-align:left}
+.opt[aria-pressed=true]{background:var(--sel);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);font-weight:700}
+.opt:disabled{opacity:.5;cursor:not-allowed}
+.scale{display:flex;gap:6px;margin-top:8px}
+.scale button{flex:1;padding:10px 0;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px}
+.scale button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.ends{display:flex;justify-content:space-between;font-size:.85rem;color:var(--mute);margin-top:4px}
+.note{border-left:3px solid var(--accent);padding:8px 14px;background:var(--sel);border-radius:0 6px 6px 0;font-size:.9rem;margin:14px 0}
+.hidden{display:none}
+@media(max-width:480px){.opt{padding:12px 8px;font-size:.92rem}.card{padding:20px}}
+</style>
+<script src="stimuli.js"></script>
+</head>
+<body>
+<main>
+<div class="bar" aria-hidden="true"><i id="prog"></i></div>
+<div id="app"></div>
+</main>
+<script>
+/* ============ RESEARCHER CONFIG (edit here) ============ */
+const CONFIG = {
+  title: "한국어 학습자 발화 청취 실험",
+  contact: "담당자: 애쉬 / asheinkorea@gmail.com",
+  audioDir: "audio/",          // 오디오 파일이 있는 폴더
+  maxPlays: 2,                 // 한 문항당 최대 재생 횟수
+  // L1 코드 → 화면에 표시될 보기
+  options: [
+    {id:"EN",group:"유럽어", label:"영어"},
+    {id:"ES",group:"유럽어", label:"스페인어"},
+    {id:"FR",group:"유럽어", label:"프랑스어"},
+    {id:"VI",group:"아시아어", label:"베트남어"},
+    {id:"ZH",group:"아시아어", label:"중국어"},
+    {id:"JA",group:"아시아어", label:"일본어"}
+  ],
+  metadataFile: "stimuli.json", // 메타데이터 JSON (audio 폴더 옆에 두세요)
+  // JSON 안의 필드 이름 (아래 후보 중 먼저 발견되는 것을 사용)
+  fields: {
+    file: ["file","filename","audio","audio_file","path"],
+    l1: ["l1","native_language","language","lang","first_language","country"],
+    speaker: ["speaker","speaker_id","spk","id"]
+  },
+  // JSON의 L1 값을 위 보기 코드로 연결하는 별칭 (대소문자 무시)
+  aliases: {
+    EN:["en","english","american","us","usa","미국","영어"],
+    ES:["es","spanish","spain","스페인","스페인어"],
+    FR:["fr","french","france","프랑스","프랑스어"],
+    VI:["vi","vietnamese","vietnam","베트남","베트남어"],
+    ZH:["zh","cn","chinese","mandarin","china","중국","중국어"],
+    JA:["ja","jp","japanese","japan","일본","일본어"]
+  },
+  audioExt: ".wav",            // 메타데이터에 파일명이 없을 때: JSON 파일명 + 이 확장자를 오디오로 사용
+  breakAt: 0.5,                // 전체 문항의 이 비율 지점(0.5 = 정중앙)에서 한 번 휴식
+  maxSameL1InRow: 2            // 같은 L1이 연속 등장하는 최대 횟수
+};
+/* ======================================================== */
+
+const app = document.getElementById("app"), prog = document.getElementById("prog");
+const S = {stim:[],pid:"", demo:{}, trials:[], i:0, results:[], t0:0, plays:0, resp:null, conf:null, playedOnce:false, firstEnd:0};
+const $ = (h)=>{app.innerHTML=h; window.scrollTo(0,0)};
+const shuffle = a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const setProg = f=>prog.style.width=(f*100)+"%";
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function pick(o,names){for(const n of names){const k=Object.keys(o).find(x=>x.toLowerCase()===n);if(k!==undefined)return o[k]}}
+function normL1(v){const x=String(v??"").trim().toLowerCase();
+  for(const [id,al] of Object.entries(CONFIG.aliases)){if(x===id.toLowerCase()||al.some(a=>x===a||x.startsWith(a+" ")))return id}
+  return null}
+function parseStimuli(data){
+  let arr=Array.isArray(data)?data:(data.clips||data.stimuli||data.items||data.data||Object.entries(data).map(([k,v])=>typeof v==="object"?{file:k,...v}:null).filter(Boolean));
+  const bad=[],out=[];
+  arr.forEach((o,n)=>{
+    const file=pick(o,CONFIG.fields.file)??(o.__base?o.__base+CONFIG.audioExt:undefined);
+    let raw=pick(o,CONFIG.fields.l1),l1=normL1(raw);
+    if(!l1&&o.__base){const tok=o.__base.split(/[-_ ]+/).map(normL1).find(Boolean);if(tok){l1=tok;raw="(파일명에서 추출) "+tok}}
+    if(!file||!l1){bad.push(`#${n+1} file=${file} l1=${raw}`);return}
+    const meta={};const flat=(x,pre)=>Object.entries(x).forEach(([k,v])=>{if(k==="__base")return;if(v!==null&&typeof v==="object"&&!Array.isArray(v))flat(v,pre+k+".");else meta["meta_"+pre+k]=Array.isArray(v)?v.join(";"):v});flat(o,"");
+    out.push({file:String(file).split("/").pop(),l1,speaker:pick(o,CONFIG.fields.speaker)??o.__base??file,meta});
+  });
+  if(bad.length)throw new Error("인식할 수 없는 항목 "+bad.length+"개:\n"+bad.slice(0,8).join("\n"));
+  if(!out.length)throw new Error("자극이 비어 있습니다.");
+  return out}
+function setup(msg){
+  setProg(0);
+  let cached=null;try{cached=JSON.parse(localStorage.getItem("l1exp_stim"))}catch(e){}
+  $(`<div class="card"><h2>연구자 설정</h2>
+    ${msg?`<div class="note" style="white-space:pre-wrap">${esc(msg)}</div>`:""}
+    <p>메타데이터 JSON 파일을 <b>모두 한 번에</b> 선택하세요. (폴더에서 Ctrl/Cmd+A 후 열기)<br>
+    <span class="mute">JSON과 같은 이름의 ${esc(CONFIG.audioExt)} 파일을 <b>audio</b> 폴더에서 찾아 재생합니다.</span></p>
+    <input type="file" id="jf" accept=".json,application/json" multiple>
+    ${cached?`<p style="margin-top:18px">이전에 불러온 자극 ${cached.length}개가 저장되어 있습니다.</p><button class="btn ghost" id="useC">저장된 자극 사용</button>`:""}
+  </div>`);
+  if(cached)useC.onclick=()=>{S.stim=cached;consent()};
+  jf.onchange=async()=>{try{
+    const objs=[];
+    for(const f of jf.files){const d=JSON.parse(await f.text());const base=f.name.replace(/\.json$/i,"");
+      (Array.isArray(d)?d:[d]).forEach(o=>objs.push({...o,__base:o.file||o.filename?undefined:base}))}
+    S.stim=parseStimuli(objs);
+    try{localStorage.setItem("l1exp_stim",JSON.stringify(S.stim))}catch(e){}
+    ready()}catch(e){setup("불러오기 오류: "+e.message)}};
+}
+function ready(){
+  setProg(0);const c={};S.stim.forEach(x=>c[x.l1]=(c[x.l1]||0)+1);
+  $(`<div class="card"><h2>자극 불러오기 완료</h2>
+    <p>총 ${S.stim.length}개 (${CONFIG.options.map(o=>esc(o.label)+" "+(c[o.id]||0)).join(" · ")})</p>
+    <p>아래 버튼으로 <b>stimuli.js</b>를 저장해 이 HTML 파일과 같은 폴더에 두면, 다음부터는 이 단계 없이 자동으로 불러옵니다.</p>
+    <button class="btn ghost" id="dj">stimuli.js 저장</button>
+    <button class="btn" id="go">실험 시작</button></div>`);
+  dj.onclick=()=>{const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob(["window.STIMULI_DATA="+JSON.stringify(S.stim)+";"],{type:"text/javascript"}));
+    a.download="stimuli.js";document.body.appendChild(a);a.click();a.remove()};
+  go.onclick=consent;
+}
+async function boot(){
+  if(window.STIMULI_DATA&&window.STIMULI_DATA.length){S.stim=window.STIMULI_DATA;return consent()}
+  try{const r=await fetch(CONFIG.metadataFile);if(!r.ok)throw 0;S.stim=parseStimuli(await r.json());consent()}
+  catch(e){setup(e&&e.message&&e.message.includes("항목")?e.message:"")}
+}
+function constrainedShuffle(a){
+  for(let t=0;t<500;t++){const x=shuffle(a);let run=1,ok=true;
+    for(let i=1;i<x.length;i++){run=x[i].l1===x[i-1].l1?run+1:1;if(run>CONFIG.maxSameL1InRow){ok=false;break}}
+    if(ok)return x}
+  return shuffle(a)}
+function genPid(){
+  const q = new URLSearchParams(location.search).get("pid");
+  return q || "P" + Date.now().toString(36).toUpperCase().slice(-5) + Math.floor(Math.random()*90+10);
+}
+
+/* ---------- Screens ---------- */
+function consent(){
+  S.pid = genPid(); setProg(0);
+  $(`<div class="card">
+    <h1>${esc(CONFIG.title)}</h1>
+    <p class="mute">연구 참여 동의서</p>
+    <p>이 연구는 한국어를 배우는 외국인 학습자의 발화를 듣고, 화자의 모국어를 판단하는 과제입니다. 소요 시간은 약 ${Math.round(S.stim.length*0.45)}분이며, 중간에 한 번 쉬는 시간이 있습니다.</p>
+    <p>수집되는 정보는 응답, 반응 시간, 간단한 배경 정보이며 이름 등 개인 식별 정보는 수집하지 않습니다. 모든 자료는 연구 목적으로만 사용되며, 참여는 언제든지 중단할 수 있습니다.</p>
+    <p class="mute">${esc(CONFIG.contact)}</p>
+    <label class="check"><input type="checkbox" id="c1"><span>위 내용을 읽고 이해했으며, 연구 참여에 동의합니다.</span></label>
+    <label class="check"><input type="checkbox" id="c2"><span>만 18세 이상입니다.</span></label>
+    <button class="btn" id="go" disabled>동의하고 시작하기</button>
+  </div>`);
+  const chk=()=>go.disabled=!(c1.checked&&c2.checked);
+  c1.onchange=c2.onchange=chk; go.onclick=demographics;
+}
+
+function demographics(){
+  setProg(.1);
+  $(`<div class="card">
+    <h2>참여자 정보</h2>
+    <p class="mute">통계 분석에만 사용됩니다.</p>
+    <label for="age">나이 (만)</label><input type="number" id="age" min="18" max="99">
+    <label for="gender">성별</label>
+    <select id="gender"><option value="">선택</option><option>여성</option><option>남성</option><option>기타</option><option>응답하지 않음</option></select>
+    <label for="dialect">주로 사용하는 방언 (성장 지역)</label>
+    <select id="dialect"><option value="">선택</option><option>서울·경기</option><option>강원</option><option>충청</option><option>전라</option><option>경상</option><option>제주</option><option>기타</option></select>
+    <label for="foreign">외국어 학습자와 한국어로 대화한 경험</label>
+    <select id="foreign"><option value="">선택</option><option value="1">거의 없음</option><option value="2">가끔 있음</option><option value="3">자주 있음</option><option value="4">한국어 교육 종사/전공</option></select>
+    <label for="langs">구사 가능한 외국어와 수준</label><input type="text" id="langs" placeholder="예: 영어(중급), 일본어(고급), 중국어(초급)"><div class="mute">‘언어(수준)’ 형식으로 쉼표로 구분해 적어 주세요. 수준은 초급·중급·고급 중에서 적어 주세요. 없으면 ‘없음’이라고 적어 주세요.</div>
+    <label for="hear">청각에 문제가 있습니까?</label>
+    <select id="hear"><option value="">선택</option><option>없음</option><option>있음</option></select>
+    <button class="btn" id="go" disabled>다음</button>
+  </div>`);
+  const req=["age","gender","dialect","foreign","langs","hear"];
+  const chk=()=>go.disabled=!req.every(k=>document.getElementById(k).value);
+  [...app.querySelectorAll("input,select")].forEach(e=>e.oninput=e.onchange=chk);
+  go.onclick=()=>{S.demo={age:age.value,gender:gender.value,dialect:dialect.value,foreign_exposure:foreign.value,other_languages:langs.value.trim(),hearing:hear.value};instructions()};
+}
+
+function instructions(){
+  setProg(.2);
+  $(`<div class="card">
+    <h2>안내</h2>
+    <p>한국어를 배우는 외국인 학습자의 짧은 음성(5–15초)을 듣게 됩니다. 들은 뒤 이 화자의 <b>모국어</b>가 무엇인지 보기 중에서 하나를 고르고, 얼마나 확신하는지 표시해 주세요.</p>
+    <p>정답이 없다고 느껴져도 가장 가까운 것을 선택해 주세요. 직감에 따라 답하셔도 됩니다.</p>
+    <div class="note">각 음성은 최대 ${CONFIG.maxPlays}번까지 들을 수 있습니다. 조용한 곳에서 이어폰이나 헤드폰을 사용해 주세요.</div>
+    <p>총 ${S.stim.length}개의 음성을 듣게 됩니다. 보기: ${CONFIG.options.map(o=>esc(o.label)).join(", ")}</p>
+    <button class="btn ghost" id="test">소리 확인하기</button>
+    <button class="btn" id="go">실험 시작</button>
+  </div>`);
+  test.onclick=()=>beep(0.6);
+  go.onclick=()=>{S.trials=constrainedShuffle(S.stim);S.i=0;S.results=[];trial()};
+}
+
+let audio=null, usingBeep=false;
+function beep(d){
+  try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();
+    o.frequency.value=440;g.gain.value=.08;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+d);
+    return new Promise(r=>setTimeout(r,d*1000));}catch(e){return Promise.resolve()}
+}
+
+function pause(){
+  setProg(.2+.75*S.i/S.trials.length);
+  $(`<div class="card" style="text-align:center"><h2>반쯤 오셨어요!</h2>
+    <p>잠시 쉬었다가 계속 진행해 주세요.</p>
+    <button class="btn" id="go">계속하기</button></div>`);
+  go.onclick=()=>trial(true);
+}
+function trial(skipBreak){
+  const n=S.trials.length, t=S.trials[S.i];
+  if(!skipBreak&&S.i===Math.floor(n*CONFIG.breakAt))return pause();
+  setProg(.2+.75*S.i/n);
+  S.plays=0;S.resp=null;S.conf=null;S.playedOnce=false;S.t0=0;usingBeep=false;
+  audio=new Audio(CONFIG.audioDir+encodeURIComponent(t.file)); audio.preload="auto";
+  $(`<div class="card">
+    <p class="mute">${S.i+1} / ${n}</p>
+    <h2>이 화자의 모국어는 무엇입니까?</h2>
+    <div class="player">
+      <button class="play" id="play" aria-label="재생">▶</button>
+      <div><div id="pl">재생 가능 ${CONFIG.maxPlays}회</div><div class="mute" id="warn"></div></div>
+    </div>
+    <label>모국어 선택</label>
+    <div class="opts" id="opts">${["유럽어","아시아어"].map(g=>`<div class="grp"><div class="gh">${g}</div>${CONFIG.options.filter(o=>o.group===g).map(o=>`<button class="opt" data-id="${o.id}" aria-pressed="false" disabled>${esc(o.label)}</button>`).join("")}</div>`).join("")}</div>
+    <div id="confBox" class="hidden">
+      <label>선택에 대한 확신 정도</label>
+      <div class="scale" id="scale">${[1,2,3,4,5,6,7].map(k=>`<button data-k="${k}" aria-pressed="false">${k}</button>`).join("")}</div>
+      <div class="ends"><span>전혀 확신 없음</span><span>매우 확신함</span></div>
+    </div>
+    <button class="btn" id="next" disabled>${S.i+1<n?"다음":"완료"}</button>
+  </div>`);
+  const pb=document.getElementById("play");
+  const done=()=>{pb.classList.remove("on");pb.textContent="▶";
+    if(!S.playedOnce){S.playedOnce=true;S.firstEnd=performance.now();opts.querySelectorAll(".opt").forEach(b=>b.disabled=false)}
+    if(S.plays>=CONFIG.maxPlays)pb.disabled=true;};
+  pb.onclick=async()=>{
+    if(S.plays>=CONFIG.maxPlays)return;
+    S.plays++;pl.textContent="재생 가능 "+(CONFIG.maxPlays-S.plays)+"회";
+    pb.classList.add("on");pb.textContent="■";pb.disabled=true;
+    audio.onerror=null;
+    const finish=()=>{pb.disabled=S.plays>=CONFIG.maxPlays;done()};
+    audio.onended=finish;
+    audio.onerror=async()=>{usingBeep=true;warn.textContent="미리보기: 오디오 파일을 찾을 수 없어 신호음으로 대체됨";await beep(1.5);finish()};
+    try{audio.currentTime=0;await audio.play()}catch(e){audio.onerror&&audio.onerror()}
+  };
+  opts.onclick=e=>{const b=e.target.closest(".opt");if(!b||b.disabled)return;
+    if(!S.resp)S.rt=performance.now()-S.firstEnd;
+    S.resp=b.dataset.id;opts.querySelectorAll(".opt").forEach(x=>x.setAttribute("aria-pressed",x===b));
+    confBox.classList.remove("hidden");chk()};
+  scale.onclick=e=>{const b=e.target.closest("button");if(!b)return;
+    S.conf=+b.dataset.k;scale.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));chk()};
+  const chk=()=>next.disabled=!(S.resp&&S.conf);
+  next.onclick=()=>{
+    S.results.push({participant_id:S.pid,trial:S.i+1,file:t.file,speaker:t.speaker,true_l1:t.l1,response:S.resp,
+      correct:S.resp===t.l1?1:0,confidence:S.conf,rt_ms_from_first_end:Math.round(S.rt),plays:S.plays,audio_missing:usingBeep?1:0,
+      timestamp:new Date().toISOString(),...t.meta});
+    try{localStorage.setItem("l1exp_partial_"+S.pid,JSON.stringify({demo:S.demo,results:S.results}))}catch(e){}
+    audio.pause();S.i++;S.i<n?trial():finish();
+  };
+}
+
+function toCSV(){
+  const demoKeys=Object.keys(S.demo);
+  const cols=[...new Set(S.results.flatMap(r=>Object.keys(r)))].concat(demoKeys);
+  const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  return "\ufeff"+[cols.join(",")].concat(S.results.map(r=>cols.map(c=>q(c in r?r[c]:S.demo[c])).join(","))).join("\r\n");
+}
+function download(){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([toCSV()],{type:"text/csv;charset=utf-8"}));
+  a.download=`l1_experiment_${S.pid}.csv`;document.body.appendChild(a);a.click();a.remove();
+}
+
+function finish(){
+  setProg(1);
+  const acc=S.results.reduce((s,r)=>s+r.correct,0);
+  $(`<div class="card">
+    <h1>참여해 주셔서 감사합니다</h1>
+    <p>실험이 끝났습니다. 이 연구는 한국어 학습자의 발음 특징에서 모국어를 추정할 수 있는지를 알아보기 위한 것입니다. 응답에 옳고 그름은 없으며, 개별 결과는 익명으로 분석됩니다.</p>
+    <p class="mute">참여자 ID: ${esc(S.pid)}</p>
+    <button class="btn" id="dl">결과 파일 저장 (CSV)</button>
+    <p class="mute" style="margin-top:16px">저장한 파일을 담당 연구자에게 전달해 주세요.</p>
+    <details class="mute"><summary>연구자용: 이번 참여자 정확도</summary>${acc} / ${S.results.length}</details>
+  </div>`);
+  dl.onclick=download;
+  try{localStorage.setItem("l1exp_"+S.pid,toCSV())}catch(e){}
+}
+boot();
+</script>
+</body>
+</html>
